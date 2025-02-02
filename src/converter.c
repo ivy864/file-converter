@@ -3,20 +3,65 @@
 #include <stdlib.h>
 
 void write_header(FILE *out) {
-    uint64_t mthd = 0x4d546864;
+    uint32_t mthd = 0x6468544d;
     fwrite(&mthd, 4, 1, out);
 
-    uint64_t len = 6;
+    uint32_t len = 0x06000000;
     fwrite(&len, 4, 1, out);
 
     uint16_t format = 0;
-    fwrite(&len, 2, 1, out);
+    fwrite(&format, 2, 1, out);
 
-    uint16_t n = 1;
+    uint16_t n = 0x0100;
     fwrite(&n, 2, 1, out);
 
     int16_t delta = 100;
     fwrite(&delta, 2, 1, out);
+}
+
+void write_track(FILE *out, FILE *in) {
+    uint32_t mtrk = 0x6b72544d;
+    fwrite(&mtrk, 1, 4, out);
+
+    fseek(in, 0, SEEK_END);
+    uint32_t size = ftell(in);
+    fseek(in, 0, SEEK_SET);
+
+    fwrite(&size, 4, 1, out);
+
+    unsigned char c; 
+
+    uint32_t count = 0;
+    while (fread(&c, 1, 1, in) != 0) {
+        if (count % 3 == 0) {
+            c  = c | 0x80;
+        }
+        fwrite(&c, 1, 1, out);
+        count++;
+    }
+    uint32_t end = 	0x00FF2F00;
+    fwrite(&end, 4, 1, out);
+}
+
+void write_test(FILE *out) {
+    uint32_t mtrk = 0x6b72544d;
+    fwrite(&mtrk, 1, 4, out);
+
+    uint32_t size = 0x11000000;
+    fwrite(&size, 4, 1, out);
+
+    uint32_t on = 0x7f349001;
+    uint32_t off = 0x7f34807f;
+    uint32_t alloff = 0x7bb0109c;
+
+    fwrite(&on, 4, 1, out);
+    fwrite(&off, 4, 1, out);
+    fwrite(&alloff, 4, 1, out);
+    putc(0, out);
+    
+
+    uint32_t end = 	0x002fff00;
+    fwrite(&end, 4, 1, out);
 }
 
 
@@ -35,6 +80,8 @@ int main(int argc, char *argv[]) {
     }
     
     write_header(out);
+    write_test(out);
+    //write_track(out, in);
 
     return EXIT_SUCCESS;
 }
