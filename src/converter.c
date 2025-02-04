@@ -2,6 +2,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/** 
+ * Write a 32 bit integer to a file, in order of highest bytes to lowest.
+ */
+void write_int(FILE *file, uint64_t num, uint32_t size) {
+    uint8_t byte;
+    for (int i = size; i > 0; i--) {
+        byte = num >> 8 * (i - 1);
+        putc(byte, file);
+
+        printf("byte: %x\n", byte);
+    }
+
+}
+
 void write_header(FILE *out) {
     uint32_t mthd = 0x6468544d;
     fwrite(&mthd, 4, 1, out);
@@ -26,6 +40,13 @@ void write_track(FILE *out, FILE *in) {
     fseek(in, 0, SEEK_END);
     uint32_t size = ftell(in);
     fseek(in, 0, SEEK_SET);
+
+    uint32_t extra = size % 3;
+    size += extra;
+    // notes are delta + (event code + channel) + note + attack 
+    size = size + (size / 3);
+    // all off = 4
+    // end = 4
 
     fwrite(&size, 4, 1, out);
 
@@ -58,6 +79,14 @@ void write_test(FILE *out) {
     fwrite(&off, 4, 1, out);
     fwrite(&alloff, 4, 1, out);
     putc(0, out);
+    // 6 bytes
+    // 3 + 1 3 + 1
+    // 8 bytes
+    // 6 + (6/3)
+    // 7 bytes -> extra delta
+    // bytes += bytes % 3
+    // (bytes = 9)
+    // delta -> operation + channel -> 
     
 
     uint32_t end = 	0x002fff00;
@@ -66,6 +95,7 @@ void write_test(FILE *out) {
 
 
 int main(int argc, char *argv[]) {
+    write_int(stdout, 0xffaabbcc, 2);
     if (argc < 3) {
         fprintf(stderr, "Usage: converter <in> <out>\n");
         return EXIT_FAILURE;
