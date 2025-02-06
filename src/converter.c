@@ -79,6 +79,7 @@ void write_track(FILE *out, FILE *in) {
             // event code: note off, channel 0
             putc(0x80, out);
         }
+        count += 1;
     }
 
     // fill in left-over bytes with 0
@@ -91,37 +92,6 @@ void write_track(FILE *out, FILE *in) {
     // write end of track message
     write_int(out, 0x00ff2f00, 4);
 }
-
-void write_test(FILE *out) {
-    uint32_t mtrk = 0x6b72544d;
-    fwrite(&mtrk, 1, 4, out);
-
-    uint32_t size = 0x11000000;
-    fwrite(&size, 4, 1, out);
-
-    uint32_t on = 0x7f349001;
-    uint32_t off = 0x7f34807f;
-    // 9c 10 b0 7b 00
-    uint32_t alloff = 0x7bb0109c;
-
-    fwrite(&on, 4, 1, out);
-    fwrite(&off, 4, 1, out);
-    fwrite(&alloff, 4, 1, out);
-    putc(0, out);
-    // 6 bytes
-    // 3 + 1 3 + 1
-    // 8 bytes
-    // 6 + (6/3)
-    // 7 bytes -> extra delta
-    // bytes += bytes % 3
-    // (bytes = 9)
-    // delta -> operation + channel -> 
-    
-
-    uint32_t end = 	0x002fff00;
-    fwrite(&end, 4, 1, out);
-}
-
 
 int main(int argc, char *argv[]) {
     if (argc < 3) {
@@ -138,8 +108,8 @@ int main(int argc, char *argv[]) {
     }
     
     write_header(out);
-    write_test(out);
-    //write_track(out, in);
+    //write_test(out);
+    write_track(out, in);
 
     fclose(in);
     fclose(out);
