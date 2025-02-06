@@ -3,65 +3,93 @@
 #include <stdlib.h>
 
 /** 
- * Write a 32 bit integer to a file, in order of highest bytes to lowest.
+ * Write 'size' bytes of an integer (num) to a file, from highest order bytes to lowest.
  */
 void write_int(FILE *file, uint64_t num, uint32_t size) {
     uint8_t byte;
     for (int i = size; i > 0; i--) {
         byte = num >> 8 * (i - 1);
         putc(byte, file);
-
-        printf("byte: %x\n", byte);
     }
-
 }
 
+/**
+ * Write a MIDI header for a format 0 MIDI file with 1 track.
+ */
 void write_header(FILE *out) {
-    uint32_t mthd = 0x6468544d;
-    fwrite(&mthd, 4, 1, out);
+    // write the string "MThd"
+    write_int(out, 0x4d546864, 4);
 
-    uint32_t len = 0x06000000;
-    fwrite(&len, 4, 1, out);
+    // size of header chunk 
+    write_int(out, (uint64_t) 6, 4);
 
-    uint16_t format = 0;
-    fwrite(&format, 2, 1, out);
+    // MIDI format. Format 0 is a single track MIDI file
+    write_int(out, 0, 2);
 
-    uint16_t n = 0x0100;
-    fwrite(&n, 2, 1, out);
+    // Number of tracks. Since we're using format 0, this must be 1
+    write_int(out, 1, 2);
 
-    int16_t delta = 100;
-    fwrite(&delta, 2, 1, out);
+    // Number of ticks per quarter-note
+    write_int(out, 96, 2);
 }
 
 void write_track(FILE *out, FILE *in) {
-    uint32_t mtrk = 0x6b72544d;
-    fwrite(&mtrk, 1, 4, out);
+    // write the string MTrk 
+    write_int(out, 0x4d54726b, 4);
 
+    /* 
+     * Note on/off events are composed of 5 sections:
+     * - time delta (variable length; at least 1 byte)
+     * - event code (4 bytes) and channel (4 bytes)
+     * - note (1 byte)
+     * - attack (1 byte)
+     *
+     * Event code and channel need to be something valid, so they alternate 
+     * between note-on (9) and note off (8).
+     * Since code and channel do not come from the input file, they add an 
+     * additional byte for every 3 bytes.
+     */
     fseek(in, 0, SEEK_END);
     uint32_t size = ftell(in);
     fseek(in, 0, SEEK_SET);
 
-    uint32_t extra = size % 3;
+    uint32_t extra = 3 - (size % 3);
     size += extra;
-    // notes are delta + (event code + channel) + note + attack 
+
     size = size + (size / 3);
-    // all off = 4
-    // end = 4
 
-    fwrite(&size, 4, 1, out);
+    // add 8 bytes for the 'all notes off' and 'end of track' messages
+    size += 8;
 
-    unsigned char c; 
+    write_int(out, size, 4);
 
+    uint8_t c; 
     uint32_t count = 0;
+
     while (fread(&c, 1, 1, in) != 0) {
-        if (count % 3 == 0) {
-            c  = c | 0x80;
+        // clear highest order bit
+        c  = c & 0x7f;
+        putc(c, out);
+
+        if (count % 6 == 0) {
+            // event code: note on, channel 0
+            putc(0x90, out);
         }
-        fwrite(&c, 1, 1, out);
-        count++;
+        else if (count % 6 == 3) {
+            // event code: note off, channel 0
+            putc(0x80, out);
+        }
     }
-    uint32_t end = 	0x00FF2F00;
-    fwrite(&end, 4, 1, out);
+
+    // fill in left-over bytes with 0
+    for (int i = 0; i < extra; i++) {
+        putc(0, out);
+    }
+
+    // write all notes off message w/ delta of 7f
+    write_int(out, 0x7fb07b00, 4);
+    // write end of track message
+    write_int(out, 0x00ff2f00, 4);
 }
 
 void write_test(FILE *out) {
@@ -73,6 +101,7 @@ void write_test(FILE *out) {
 
     uint32_t on = 0x7f349001;
     uint32_t off = 0x7f34807f;
+    // 9c 10 b0 7b 00
     uint32_t alloff = 0x7bb0109c;
 
     fwrite(&on, 4, 1, out);
@@ -95,7 +124,6 @@ void write_test(FILE *out) {
 
 
 int main(int argc, char *argv[]) {
-    write_int(stdout, 0xffaabbcc, 2);
     if (argc < 3) {
         fprintf(stderr, "Usage: converter <in> <out>\n");
         return EXIT_FAILURE;
@@ -112,6 +140,9 @@ int main(int argc, char *argv[]) {
     write_header(out);
     write_test(out);
     //write_track(out, in);
+
+    fclose(in);
+    fclose(out);
 
     return EXIT_SUCCESS;
 }
