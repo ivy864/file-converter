@@ -40,7 +40,7 @@ void write_track(FILE *out, FILE *in) {
     /* 
      * Note on/off events are composed of 5 sections:
      * - time delta (variable length; at least 1 byte)
-     * - event code (4 bytes) and channel (4 bytes)
+     * - event code (4 bits) and channel (4 bits)
      * - note (1 byte)
      * - attack (1 byte)
      *
